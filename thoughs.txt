@@ -6,3 +6,6 @@
     - Need to work on iStochastic. Maybe research how it is used?
 
   This current version has a lot settings.
+
+
+Need a little divine intervention.
