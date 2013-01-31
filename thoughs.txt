@@ -1,0 +1,8 @@
+1/30/13 -
+  With the last commit. Nothing works. I took out the trailing stop and I added the old open condition and close condition. Need to do a few things
+
+    - Need to take out momentum
+    - Need to add ADX
+    - Need to work on iStochastic. Maybe research how it is used?
+
+  This current version has a lot settings.
