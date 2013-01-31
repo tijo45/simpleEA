@@ -1,10 +1,10 @@
 //+------------------------------------------------------------------+
 //|                                                     simpleEA.mq5 |
-//|                                       Copyright © 2012, _Techno_ |
-//|                                            niko@pingwin.uvttk.ru |
+//|                                         Copyright © 2012, tijo45 |
+//|                                                 tijo45@gmail.com |
 //+------------------------------------------------------------------+
-#property copyright "Copyright © 2012, _Techno_"
-#property link      "niko@pingwin.uvttk.ru"
+#property copyright "Copyright © 2012, tijo45"
+#property link      "tijo45@gmail.com"
 #property version   "1.00"
 #include <Trade\Trade.mqh>
 #include <Expert\Trailing\TrailingFixedPips.mqh>
@@ -13,7 +13,7 @@
 CTrade trX;
 CTrailingFixedPips fixed;
 //---
-input int Sl=0,Tp=0;
+input int inputStopLoss=0,inputTakeProfit=50;
 double lot;
 input string n1="Settings Stohactic";
 input int K=8,D=3,S=3;
@@ -26,47 +26,47 @@ input string n4="Settings QQE Alert v3";
 input int                  InpSF=50;                         // Smoothing Factor
 input int                  InpAlertLevel=50;                // Alert level
 input ENUM_APPLIED_PRICE   InpAppliedPrice=PRICE_CLOSE;     // Applied price
-input int            TP     =500;
-input int            SL     =500;
+input int            TP     =10;
+input int            SL     =10;
 //---
-int hfma,hsma,ha,hm,hqq,hst; // handles for indicators
+int handleFastMovingAverage,handleSlowMovingAverage,heikenAshi,handleMomentum,handleAlert,handleStochastic,handleADX; // handles for indicators
 int hourStoch;
 //---
 int OnInit()
   {
   
-   hfma=iMA(_Symbol,PERIOD_CURRENT,fastPeriod,0,MODE_EMA,PRICE_CLOSE); // record of handles
-   hsma=iMA(_Symbol,PERIOD_CURRENT,slowPeriod,0,MODE_EMA,PRICE_OPEN);// record of handles
-   ha=iCustom(_Symbol,PERIOD_CURRENT,"Heiken_Ashi");// record of handles
-   hm=iMomentum(_Symbol,PERIOD_CURRENT,period,PRICE_CLOSE);// record of handles
-   hqq=iCustom(_Symbol,PERIOD_CURRENT,"QQE_Alert_v3",InpSF,InpAlertLevel,InpAppliedPrice);// record of handles
-   hst=iStochastic(_Symbol,PERIOD_CURRENT,K,D,S,MODE_SMA,STO_LOWHIGH);// record of handles
-   hourStoch=iStochastic(_Symbol,PERIOD_CURRENT,K,D,S,MODE_SMA,STO_LOWHIGH);// record of handles\
-   hqq=iCustom(_Symbol,PERIOD_CURRENT,"QQE_Alert_v3",InpSF,InpAlertLevel,InpAppliedPrice);// record of handles
+   handleFastMovingAverage=iMA(_Symbol,PERIOD_CURRENT,fastPeriod,0,MODE_EMA,PRICE_CLOSE); // record of handles
+   handleSlowMovingAverage=iMA(_Symbol,PERIOD_CURRENT,slowPeriod,0,MODE_EMA,PRICE_OPEN);// record of handles
+   heikenAshi=iCustom(_Symbol,PERIOD_CURRENT,"Heiken_Ashi");// record of handles
+   handleMomentum=iMomentum(_Symbol,PERIOD_CURRENT,period,PRICE_CLOSE);// record of handles
+   handleAlert=iCustom(_Symbol,PERIOD_CURRENT,"QQE_Alert_v3",InpSF,InpAlertLevel,InpAppliedPrice);// record of handles
+   handleStochastic=iStochastic(_Symbol,PERIOD_CURRENT,K,D,S,MODE_SMA,STO_LOWHIGH);// record of handles
+   handleADX=iADX(_Symbol,PERIOD_CURRENT,14);// record of handles
+   
    return(0);
   }
 //---
 void OnTick()
   {
-   lot = NormalizeDouble(((AccountInfoDouble(ACCOUNT_BALANCE) + AccountInfoDouble(ACCOUNT_PROFIT)) * .02)/100,1);
-   static int ss,cc,bar,bar2;
-   MqlTick qq;
-   SymbolInfoTick(_Symbol,qq);
+   lot = NormalizeDouble(((AccountInfoDouble(ACCOUNT_BALANCE) + AccountInfoDouble(ACCOUNT_PROFIT)) * .02)/100,1); // figure out lot size
+   static int checkOpenCondition,checkCloseCondition,bar,bar2, trend;
+   MqlTick currentTick;
+   SymbolInfoTick(_Symbol,currentTick);
    if(bar!=Bars(_Symbol,PERIOD_CURRENT)) // Verification of the conditions for the opening and closing goes 1 time in every bar
      {
       bar=Bars(_Symbol,PERIOD_CURRENT);
-      ss=ss();cc=cc(); // check conditions
+      checkOpenCondition=checkOpenCondition();checkCloseCondition=checkCloseCondition(); trend = trend();// check conditions
      }
    if(PositionSelect(_Symbol))
      {
       if(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY)
         {
-         if(cc==1){trX.PositionClose(_Symbol);} // if open buy and close buy conditions is, close buy
+         if(checkCloseCondition==1){trX.PositionClose(_Symbol);} // if open buy and close buy conditions is, close buy
 
         }
       if(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_SELL)
         {
-         if(cc==2){trX.PositionClose(_Symbol);}// if open sell and close sell conditions is, close sell
+         if(checkCloseCondition==2){trX.PositionClose(_Symbol);}// if open sell and close sell conditions is, close sell
 
         }
      }
@@ -74,11 +74,15 @@ void OnTick()
      {
       if(bar2!=Bars(_Symbol,PERIOD_CURRENT))  // if no positions
         {
-         if(ss==2){buy();bar2=Bars(_Symbol,PERIOD_CURRENT);} // if is conditions for buy, open buy
-         if(ss==1){sell();bar2=Bars(_Symbol,PERIOD_CURRENT);}// if is conditions for sell, open sell
+         if(checkOpenCondition==2 && trend == 1 ){buy();bar2=Bars(_Symbol,PERIOD_CURRENT);} // if is conditions for buy, open buy
+         if(checkOpenCondition==1 && trend == 1 ){sell();bar2=Bars(_Symbol,PERIOD_CURRENT);}// if is conditions for sell, open sell
 
         }
      }
+     
+      // TrailingTake();
+       //TrailingStop();
+     
    return;
   }
 //+------------------------------------------------------------------+
@@ -88,11 +92,11 @@ void buy() // general description of the functions to open buy
   {
    int x=(int)SymbolInfoInteger(_Symbol,SYMBOL_TRADE_STOPS_LEVEL);
    double SL=0,TP=0; bool sss=0,bbb=0;
-   MqlTick qq;
-   SymbolInfoTick(_Symbol,qq);
-   if(Sl<=0)SL=0;else{if(Sl<x){SL=qq.bid-x*_Point;}else{SL=qq.bid-Sl*_Point;}}
-   if(Tp<=0)TP=0;else{if(Tp<x){TP=qq.bid+x*_Point;}else{TP=qq.bid+Tp*_Point;}}
-   trX.PositionOpen(_Symbol,ORDER_TYPE_BUY,lot,NormalizeDouble(qq.ask,_Digits),0,0);
+   MqlTick currentTick;
+   SymbolInfoTick(_Symbol,currentTick);
+   if(inputStopLoss<=0)SL=0;else{if(inputStopLoss<x){SL=currentTick.bid-x*_Point;}else{SL=currentTick.bid-inputStopLoss*_Point;}}
+   if(inputTakeProfit<=0)TP=0;else{if(inputTakeProfit<x){TP=currentTick.bid+x*_Point;}else{TP=currentTick.bid+inputTakeProfit*_Point;}}
+   trX.PositionOpen(_Symbol,ORDER_TYPE_BUY,lot,NormalizeDouble(currentTick.ask,_Digits),0,0);
    if(SL>0 || TP>0)
      {
       Sleep(2000);
@@ -121,11 +125,11 @@ void sell()// general description of the functions to open sell
    int x=(int)SymbolInfoInteger(_Symbol,SYMBOL_TRADE_STOPS_LEVEL);
 
    double SL=0,TP=0;
-   MqlTick qq;
-   SymbolInfoTick(_Symbol,qq);
-   if(Sl<=0)SL=0;else{if(Sl<x){SL=qq.ask+x*_Point;}else{SL=qq.ask+Sl*_Point;}}
-   if(Tp<=0)TP=0;else{if(Tp<x){TP=qq.ask-x*_Point;}else{TP=qq.ask-Tp*_Point;}}
-   trX.PositionOpen(_Symbol,ORDER_TYPE_SELL,lot,NormalizeDouble(qq.bid,_Digits),0,0);
+   MqlTick currentTick;
+   SymbolInfoTick(_Symbol,currentTick);
+   if(inputStopLoss<=0)SL=0;else{if(inputStopLoss<x){SL=currentTick.ask+x*_Point;}else{SL=currentTick.ask+inputStopLoss*_Point;}}
+   if(inputTakeProfit<=0)TP=0;else{if(inputTakeProfit<x){TP=currentTick.ask-x*_Point;}else{TP=currentTick.ask-inputTakeProfit*_Point;}}
+   trX.PositionOpen(_Symbol,ORDER_TYPE_SELL,lot,NormalizeDouble(currentTick.bid,_Digits),0,0);
    if(SL>0 || TP>0)
      {
       Sleep(2000);
@@ -147,71 +151,85 @@ void sell()// general description of the functions to open sell
 
      }
   }
+  
+  
+//-- Check condition of trend
+int trend()
+{
+double adx[4], adx_min[4], adx_plus[4]; 
+ArraySetAsSeries(adx, true); 
+ArraySetAsSeries(adx_min, true);
+ArraySetAsSeries(adx_plus, true);
+
+CopyBuffer(handleADX,0,1,4,adx);
+CopyBuffer(handleADX,2,1,4,adx_min);
+CopyBuffer(handleADX,1,1,4,adx_plus);
+
+Print("ADX1: " + adx[0]);
+Print("adx_min: " + adx_min[0]);
+Print("adx_plus: " + adx_plus[0]);
+
+
+if(adx[0] < 30) return 1;
+//if(adx_min[0] < adx_plus[0]) return 2;
+//if(adx_min[0] > adx_plus[0]) return 1;
+
+return 0;
+
+}  
 //---
-int ss() //// general description of the signal
+
+
+//2 is buy
+//1 is sell
+int checkOpenCondition()
   {
-double mm[3],stm[3],sts[3],fma1[3],sma1[3]; 
-CopyBuffer(hm,0,1,3,mm);
-CopyBuffer(hst,0,1,3,stm);
-CopyBuffer(hst,1,1,3,sts);
-CopyBuffer(hfma,0,1,3,fma1);
-CopyBuffer(hsma,0,1,3,sma1);
-int qq=qq();
-  if(ha()==2&&fma1[0]>sma1[0]&&mm[0]>100&&qq==2&&stm[0]>sts[0])
-    if(ha()==2&&fma1[1]>sma1[1]&&mm[1]>100&&qq==2&&stm[1]>sts[1])
-      if(ha()==2&&fma1[2]>sma1[2]&&mm[2]>100&&qq==2&&stm[2]>sts[2])  
-        return(2); // signal BUY
-  
-  
-  if(ha()==1&&fma1[0]<sma1[0]&&mm[0]<100&&qq==1&&stm[0]<sts[0])
-    if(ha()==1&&fma1[1]<sma1[1]&&mm[1]<100&&qq==1&&stm[1]<sts[1])
-      if(ha()==1&&fma1[2]<sma1[2]&&mm[2]<100&&qq==1&&stm[2]<sts[2])
-        return(1); // signal SELL
+double mm[1],stm[1],sts[1],fastMovingAverage[1],slowMovingAverage[1]; 
+CopyBuffer(handleMomentum,0,1,1,mm);
+CopyBuffer(handleStochastic,0,1,1,stm);
+CopyBuffer(handleStochastic,1,1,1,sts);
+CopyBuffer(handleFastMovingAverage,0,1,1,fastMovingAverage);
+CopyBuffer(handleSlowMovingAverage,0,1,1,slowMovingAverage);
+int alertSignal=alertSignal();
+  if(heikenAshi()==2&&fastMovingAverage[0]>slowMovingAverage[0]&&mm[0]>100&&alertSignal==2&&stm[0]<80 && stm[0]>20)return(2);
+  if(heikenAshi()==1&&fastMovingAverage[0]<slowMovingAverage[0]&&mm[0]<100&&alertSignal==1&&stm[0]>80 && stm[0]<20)return(1);
    return(0);
   }
-//---
-int cc() // general description of the close position
+  
+  
+  
+int checkCloseCondition()
 {
-int qq=qq(); double fma1[1],sma1[1],sts[];
-//CopyBuffer(hfma,0,1,1,fma1);
-//CopyBuffer(hsma,0,1,1,sma1);
-CopyBuffer(hst,0,0,4,sts);
-
-
-   if(qq==1&&fma1[0]<sma1[0])return(1); // close buy
-   if(qq==2&&fma1[0]>sma1[0])return(2); // close sell
-   
-   //--- moving the trailing stop
-     TrailingTake();
-     TrailingStop();
-
+int alertSignal=alertSignal(); double fastMovingAverage[1],slowMovingAverage[1];
+CopyBuffer(handleFastMovingAverage,0,1,1,fastMovingAverage);
+CopyBuffer(handleSlowMovingAverage,0,1,1,slowMovingAverage);
+   if(alertSignal==1&&fastMovingAverage[0]<slowMovingAverage[0])return(1);
+   if(alertSignal==2&&fastMovingAverage[0]>slowMovingAverage[0])return(2);
 return(0);
 }
+
+
 //---
-int ha() // this func define color H-ASHI
+int heikenAshi() // this func define color H-ASHI
 {
  double red11[3],whi11[3];
- CopyBuffer(ha,0,1,3,red11);
- CopyBuffer(ha,3,1,3,whi11);
+ CopyBuffer(heikenAshi,0,1,3,red11);
+ CopyBuffer(heikenAshi,3,1,3,whi11);
 
       
     if(red11[0]>whi11[0])
-      if(red11[1]>whi11[1])
-        if(red11[2]>whi11[2])
           return(1);
     if(red11[0]<whi11[0])
-      if(red11[1]<whi11[1])
-        if(red11[2]<whi11[2])
           return(2);
    return(0);
 }
 //---
-int qq() // denide signal for QQE Alert v3
+int alertSignal() // denide signal for QQE Alert v3
 {
 double up[],dw[];
 ArraySetAsSeries(up,1);ArraySetAsSeries(dw,1);
-CopyBuffer(hqq,0,1,500,up);
-CopyBuffer(hqq,1,1,500,dw);
+CopyBuffer(handleAlert,0,1,500,up);
+CopyBuffer(handleAlert,1,1,500,dw);
 for(int i=0;i<500;i++)
   {
   if(up[i]!=0&&up[i]!=EMPTY_VALUE)return(2); // buy
@@ -330,7 +348,7 @@ void TrailingTake()
             Print("new STOP LOSS" + NormalizeDouble(LastPrice-LastHeight*SL/100,_Digits));
             Print("new LastPrice" + LastPrice);
              
-            request.sl=NormalizeDouble(LastPrice-LastHeight*SL/100,_Digits);
+            request.sl=NormalizeDouble(LastPrice-LastHeight,_Digits);
             //--- Take Profit is not specified
             request.tp=PositionGetDouble(POSITION_TP);
 
@@ -361,7 +379,7 @@ void TrailingTake()
             //--- Stop Loss
             Print("new STOP LOSS" + NormalizeDouble(LastPrice+LastHeight*SL/100,_Digits));
             Print("new LastPrice" + LastPrice);
-            request.sl=NormalizeDouble(LastPrice+LastHeight*SL/100,_Digits);
+            request.sl=NormalizeDouble(LastPrice+LastHeight/100,_Digits);
             //--- Take Profit is not specified
             request.tp= PositionGetDouble(POSITION_TP);
 
