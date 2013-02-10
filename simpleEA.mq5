@@ -13,7 +13,7 @@
 CTrade trX;
 CTrailingFixedPips fixed;
 //---
-input int inputStopLoss=0,inputTakeProfit=50;
+input int inputStopLoss=0,inputTakeProfit=0;
 double lot;
 input string n1="Settings Stohactic";
 input int K=8,D=3,S=3;
@@ -37,11 +37,11 @@ int OnInit()
   
    handleFastMovingAverage=iMA(_Symbol,PERIOD_CURRENT,fastPeriod,0,MODE_EMA,PRICE_CLOSE); // record of handles
    handleSlowMovingAverage=iMA(_Symbol,PERIOD_CURRENT,slowPeriod,0,MODE_EMA,PRICE_OPEN);// record of handles
-   heikenAshi=iCustom(_Symbol,PERIOD_CURRENT,"Heiken_Ashi");// record of handles
+   heikenAshi=iCustom(_Symbol,PERIOD_H1,"Heiken_Ashi");// record of handles
    handleMomentum=iMomentum(_Symbol,PERIOD_CURRENT,period,PRICE_CLOSE);// record of handles
    handleAlert=iCustom(_Symbol,PERIOD_CURRENT,"QQE_Alert_v3",InpSF,InpAlertLevel,InpAppliedPrice);// record of handles
    handleStochastic=iStochastic(_Symbol,PERIOD_CURRENT,K,D,S,MODE_SMA,STO_LOWHIGH);// record of handles
-   handleADX=iADX(_Symbol,PERIOD_CURRENT,14);// record of handles
+   handleADX=iADX(_Symbol,PERIOD_H1,14);// record of handles
    
    return(0);
   }
@@ -49,7 +49,7 @@ int OnInit()
 void OnTick()
   {
    lot = NormalizeDouble(((AccountInfoDouble(ACCOUNT_BALANCE) + AccountInfoDouble(ACCOUNT_PROFIT)) * .02)/100,1); // figure out lot size
-   static int checkOpenCondition,checkCloseCondition,bar,bar2, trend;
+   static int checkOpenCondition,checkCloseCondition,bar,bar2, trend = trend();
    MqlTick currentTick;
    SymbolInfoTick(_Symbol,currentTick);
    if(bar!=Bars(_Symbol,PERIOD_CURRENT)) // Verification of the conditions for the opening and closing goes 1 time in every bar
@@ -61,12 +61,12 @@ void OnTick()
      {
       if(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY)
         {
-         if(checkCloseCondition==1){trX.PositionClose(_Symbol);} // if open buy and close buy conditions is, close buy
+         if(checkCloseCondition==1 && trend==1){trX.PositionClose(_Symbol);} // if open buy and close buy conditions is, close buy
 
         }
       if(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_SELL)
         {
-         if(checkCloseCondition==2){trX.PositionClose(_Symbol);}// if open sell and close sell conditions is, close sell
+         if(checkCloseCondition==2 && trend==2){trX.PositionClose(_Symbol);}// if open sell and close sell conditions is, close sell
 
         }
      }
@@ -74,13 +74,13 @@ void OnTick()
      {
       if(bar2!=Bars(_Symbol,PERIOD_CURRENT))  // if no positions
         {
-         if(checkOpenCondition==2 && trend == 1 ){buy();bar2=Bars(_Symbol,PERIOD_CURRENT);} // if is conditions for buy, open buy
+         if(checkOpenCondition==2 && trend == 2 ){buy();bar2=Bars(_Symbol,PERIOD_CURRENT);} // if is conditions for buy, open buy
          if(checkOpenCondition==1 && trend == 1 ){sell();bar2=Bars(_Symbol,PERIOD_CURRENT);}// if is conditions for sell, open sell
 
         }
      }
      
-      // TrailingTake();
+       //TrailingTake();
        //TrailingStop();
      
    return;
@@ -170,9 +170,9 @@ Print("adx_min: " + adx_min[0]);
 Print("adx_plus: " + adx_plus[0]);
 
 
-if(adx[0] < 30) return 1;
-//if(adx_min[0] < adx_plus[0]) return 2;
-//if(adx_min[0] > adx_plus[0]) return 1;
+//if(adx[0] < 30) return 1;
+if(adx_min[0] < adx_plus[0] && adx[0] < 30) return 2;
+if(adx_min[0] > adx_plus[0] && adx[0] < 30) return 1;
 
 return 0;
 
@@ -184,15 +184,17 @@ return 0;
 //1 is sell
 int checkOpenCondition()
   {
-double mm[1],stm[1],sts[1],fastMovingAverage[1],slowMovingAverage[1]; 
-CopyBuffer(handleMomentum,0,1,1,mm);
+double mm[2],stm[1],sts[1],fastMovingAverage[1],slowMovingAverage[1]; 
+CopyBuffer(handleMomentum,0,1,2,mm);
 CopyBuffer(handleStochastic,0,1,1,stm);
 CopyBuffer(handleStochastic,1,1,1,sts);
 CopyBuffer(handleFastMovingAverage,0,1,1,fastMovingAverage);
 CopyBuffer(handleSlowMovingAverage,0,1,1,slowMovingAverage);
 int alertSignal=alertSignal();
-  if(heikenAshi()==2&&fastMovingAverage[0]>slowMovingAverage[0]&&mm[0]>100&&alertSignal==2&&stm[0]<80 && stm[0]>20)return(2);
-  if(heikenAshi()==1&&fastMovingAverage[0]<slowMovingAverage[0]&&mm[0]<100&&alertSignal==1&&stm[0]>80 && stm[0]<20)return(1);
+ printf("mm[0]>" + mm[0]);
+ printf("mm[1]>" + mm[1]); 
+  if(heikenAshi()==2 && fastMovingAverage[0]>slowMovingAverage[0] && alertSignal==2 && stm[0]<30 )return(2);
+  if(heikenAshi()==1 && fastMovingAverage[0]<slowMovingAverage[0] && alertSignal==1 && stm[0]>60 )return(1);
    return(0);
   }
   
@@ -200,11 +202,15 @@ int alertSignal=alertSignal();
   
 int checkCloseCondition()
 {
-int alertSignal=alertSignal(); double fastMovingAverage[1],slowMovingAverage[1];
+int alertSignal=alertSignal(); 
+double fastMovingAverage[1],slowMovingAverage[1];
+int trend = trend();
+int heikenAshi = heikenAshi();
 CopyBuffer(handleFastMovingAverage,0,1,1,fastMovingAverage);
 CopyBuffer(handleSlowMovingAverage,0,1,1,slowMovingAverage);
-   if(alertSignal==1&&fastMovingAverage[0]<slowMovingAverage[0])return(1);
-   if(alertSignal==2&&fastMovingAverage[0]>slowMovingAverage[0])return(2);
+
+   if(fastMovingAverage[0]<slowMovingAverage[0] && heikenAshi == 2 && trend == 2)return(1);
+   if(fastMovingAverage[0]>slowMovingAverage[0] && heikenAshi == 1 && trend == 1)return(2);
 return(0);
 }
 
