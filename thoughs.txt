@@ -9,3 +9,12 @@
 
 
 Need a little divine intervention.
+
+
+
+2/25/13 - 
+
+Working with moving averages. I think the problem with my enter and exit of the market is not knowing the cross over of the moving average. 
+I need to experiment with the value of a the moving average before the current bar and the current part.
+At that point check to see if the past bar is in the opposite direction of the current. Once i determin this
+I can figure out if it is a buy or if it a sell. 
