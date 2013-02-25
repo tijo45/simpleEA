@@ -18,3 +18,12 @@ Working with moving averages. I think the problem with my enter and exit of the 
 I need to experiment with the value of a the moving average before the current bar and the current part.
 At that point check to see if the past bar is in the opposite direction of the current. Once i determin this
 I can figure out if it is a buy or if it a sell. 
+
+
+Also another thought. The hour trend is trending in a particular direction. We can check for the moving average on the 1 minutes
+and when that happens open a trade in the direction of the 1 hour. 
+
+We should also monitor the moving average on the hour. If the moving average on the hour changes, close any trade on the open in the opposite direction.
+
+
+
